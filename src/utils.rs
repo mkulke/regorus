@@ -6,9 +6,27 @@ use crate::builtins::*;
 use crate::lexer::*;
 
 use std::collections::BTreeMap;
+use thiserror::Error;
 
-use anyhow::{bail, Result};
-pub fn get_path_string(refr: &Expr, document: Option<&str>) -> Result<String> {
+#[macro_export]
+macro_rules! bail {
+    ($err:literal $(,)?) => {
+        return Err(std::convert::From::from($err))
+    };
+    ($err:expr $(,)?) => {
+        return Err(std::convert::From::from($err))
+    };
+}
+
+#[derive(Error, Debug)]
+pub enum UtilsError {
+    #[error("not a simple ref: {0}")]
+    NotASimpleRef(String),
+    #[error("fullpath {full_path} was previously defined with {arity} arguments.")]
+    PreviouslyDefined { full_path: String, arity: u8 },
+}
+
+pub fn get_path_string(refr: &Expr, document: Option<&str>) -> Result<String, UtilsError> {
     let mut comps: Vec<&str> = vec![];
     let mut expr = Some(refr);
     while expr.is_some() {
@@ -27,7 +45,10 @@ pub fn get_path_string(refr: &Expr, document: Option<&str>) -> Result<String> {
                 comps.push(v.0.text());
                 expr = None;
             }
-            _ => bail!("internal error: not a simple ref {expr:?}"),
+            _ => {
+                let expr = format!("{:?}", expr);
+                return Err(UtilsError::NotASimpleRef(expr));
+            }
         }
     }
     if let Some(d) = document {
@@ -43,7 +64,7 @@ fn get_extra_arg_impl(
     expr: &Expr,
     module: Option<&str>,
     functions: &FunctionTable,
-) -> Result<Option<Ref<Expr>>> {
+) -> Result<Option<Ref<Expr>>, UtilsError> {
     if let Expr::Call { fcn, params, .. } = expr {
         let full_path = get_path_string(fcn, module)?;
         let n_args = if let Some((_, n_args, _)) = functions.get(&full_path) {
@@ -83,14 +104,13 @@ pub fn get_extra_arg(
     }
 }
 
-pub fn gather_functions(modules: &[Ref<Module>]) -> Result<FunctionTable> {
+pub fn gather_functions(modules: &[Ref<Module>]) -> Result<FunctionTable, UtilsError> {
     let mut table = FunctionTable::new();
 
     for module in modules {
         let module_path = get_path_string(&module.package.refr, Some("data"))?;
         for rule in &module.policy {
             if let Rule::Spec {
-                span,
                 head: RuleHead::Func { refr, args, .. },
                 ..
             } = rule.as_ref()
@@ -99,10 +119,10 @@ pub fn gather_functions(modules: &[Ref<Module>]) -> Result<FunctionTable> {
 
                 if let Some((functions, arity, _)) = table.get_mut(&full_path) {
                     if args.len() as u8 != *arity {
-                        bail!(span.error(
-                            format!("{full_path} was previously defined with {arity} arguments.")
-                                .as_str()
-                        ));
+                        return Err(UtilsError::PreviouslyDefined {
+                            full_path,
+                            arity: *arity,
+                        });
                     }
                     functions.push(rule.clone());
                 } else {
@@ -117,7 +137,7 @@ pub fn gather_functions(modules: &[Ref<Module>]) -> Result<FunctionTable> {
     Ok(table)
 }
 
-pub fn get_root_var(mut expr: &Expr) -> Result<SourceStr> {
+pub fn get_root_var(mut expr: &Expr) -> Result<SourceStr, UtilsError> {
     let empty = expr.span().source_str().clone_empty();
     loop {
         match expr {

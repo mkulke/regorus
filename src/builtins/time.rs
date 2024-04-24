@@ -2,14 +2,14 @@
 // Licensed under the MIT License.
 
 use crate::ast::{Expr, Ref};
+use crate::bail;
 use crate::builtins;
 use crate::builtins::utils::{ensure_args_count, ensure_numeric, ensure_string};
+use crate::builtins::BuiltinError;
 use crate::lexer::Span;
 use crate::value::Value;
 
 use std::collections::HashMap;
-
-use anyhow::{bail, Result};
 
 use chrono::{
     DateTime, Datelike, Days, FixedOffset, Local, Months, SecondsFormat, TimeZone, Timelike, Utc,
@@ -33,7 +33,12 @@ pub fn register(m: &mut HashMap<&'static str, builtins::BuiltinFcn>) {
     m.insert("time.weekday", (weekday, 1));
 }
 
-fn add_date(span: &Span, params: &[Ref<Expr>], args: &[Value], strict: bool) -> Result<Value> {
+fn add_date(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.add_date";
     ensure_args_count(span, name, params, args, 4)?;
 
@@ -69,7 +74,12 @@ fn add_date(span: &Span, params: &[Ref<Expr>], args: &[Value], strict: bool) -> 
         })
 }
 
-fn clock(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Result<Value> {
+fn clock(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    _strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.clock";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -83,7 +93,12 @@ fn clock(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Re
     .into())
 }
 
-fn date(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Result<Value> {
+fn date(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    _strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.date";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -97,7 +112,12 @@ fn date(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Res
     .into())
 }
 
-fn diff(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Result<Value> {
+fn diff(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    _strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.diff";
     ensure_args_count(span, name, params, args, 2)?;
 
@@ -117,7 +137,12 @@ fn diff(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Res
     .into())
 }
 
-fn format(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Result<Value> {
+fn format(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    _strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.format";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -131,7 +156,12 @@ fn format(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> R
     Ok(Value::String(result.into()))
 }
 
-fn now_ns(span: &Span, params: &[Ref<Expr>], args: &[Value], strict: bool) -> Result<Value> {
+fn now_ns(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.now_ns";
     ensure_args_count(span, name, params, args, 0)?;
 
@@ -143,7 +173,7 @@ fn parse_duration_ns(
     params: &[Ref<Expr>],
     args: &[Value],
     strict: bool,
-) -> Result<Value> {
+) -> Result<Value, BuiltinError> {
     let name = "time.parse_duration_ns";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -152,7 +182,12 @@ fn parse_duration_ns(
     safe_timestamp_nanos(span, strict, dur.num_nanoseconds())
 }
 
-fn parse_ns(span: &Span, params: &[Ref<Expr>], args: &[Value], strict: bool) -> Result<Value> {
+fn parse_ns(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.parse_ns";
     ensure_args_count(span, name, params, args, 2)?;
 
@@ -168,7 +203,7 @@ fn parse_rfc3339_ns(
     params: &[Ref<Expr>],
     args: &[Value],
     strict: bool,
-) -> Result<Value> {
+) -> Result<Value, BuiltinError> {
     let name = "time.parse_rfc3339_ns";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -178,7 +213,12 @@ fn parse_rfc3339_ns(
     safe_timestamp_nanos(span, strict, datetime.timestamp_nanos_opt())
 }
 
-fn weekday(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> Result<Value> {
+fn weekday(
+    span: &Span,
+    params: &[Ref<Expr>],
+    args: &[Value],
+    _strict: bool,
+) -> Result<Value, BuiltinError> {
     let name = "time.weekday";
     ensure_args_count(span, name, params, args, 1)?;
 
@@ -197,18 +237,23 @@ fn weekday(span: &Span, params: &[Ref<Expr>], args: &[Value], _strict: bool) -> 
     Ok(Value::String(weekday.into()))
 }
 
-fn ensure_i32(name: &str, arg: &Expr, v: &Value) -> Result<i32> {
-    ensure_numeric(name, arg, v)?
+fn ensure_i32(name: &str, arg: &Expr, v: &Value) -> Result<i32, BuiltinError> {
+    let i = ensure_numeric(name, arg, v)?
         .as_i64()
         .and_then(|n| n.try_into().ok())
-        .ok_or_else(|| arg.span().error("could not convert to int32"))
+        .ok_or_else(|| arg.span().error("could not convert to int32"))?;
+    Ok(i)
 }
 
-fn safe_timestamp_nanos(span: &Span, strict: bool, nanos: Option<i64>) -> Result<Value> {
+fn safe_timestamp_nanos(
+    span: &Span,
+    strict: bool,
+    nanos: Option<i64>,
+) -> Result<Value, BuiltinError> {
     match nanos {
         Some(ns) => Ok(Value::Number(ns.into())),
         None if strict => {
-            bail!(span.error("time outside of valid range"))
+            bail!(span.error("time outside of valid range"));
         }
         None => Ok(Value::Undefined),
     }
@@ -218,7 +263,7 @@ fn parse_epoch(
     fcn: &str,
     arg: &Expr,
     val: &Value,
-) -> Result<(DateTime<FixedOffset>, Option<String>)> {
+) -> Result<(DateTime<FixedOffset>, Option<String>), BuiltinError> {
     match val {
         Value::Number(num) => {
             let ns = num.as_i64().ok_or_else(|| {
@@ -250,7 +295,7 @@ fn parse_epoch(
                     _ => {
                         let tz: Tz = match tz.parse() {
                             Ok(tz) => tz,
-                            Err(e) => bail!(e),
+                            Err(e) => bail!(BuiltinError::UnknownTimezone(e)),
                         };
                         tz.timestamp_nanos(ns).fixed_offset()
                     }
@@ -261,7 +306,7 @@ fn parse_epoch(
                     Some(other) => {
                         bail!(arg.span().error(&format!(
                             "`{fcn}` expects 3rd element of `ns` to be a `string`. Got `{other}` instead"
-                        )))
+                        )));
                     }
                     None => None,
                 };
@@ -276,7 +321,7 @@ fn parse_epoch(
 
     bail!(arg.span().error(&format!(
         "`{fcn}` expects `ns` to be a `number` or `array[number, string]`. Got `{val}` instead"
-    )))
+    )));
 }
 
 fn layout_with_predefined_formats(format: &str) -> &str {
